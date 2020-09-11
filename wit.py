@@ -81,9 +81,10 @@ def status(no_print: bool = False) -> Tuple[List[str], List[str], List[str], Lis
     if not no_print:
         printable = ''
         if head_id:
+            printable += f'Current commit id: {head_id}'
             active_branch = utilities.get_active_branch(wit_dir)
-            printable += (f'Current commit id: {head_id}'
-                          f'\nActive branch: {active_branch}')
+            if active_branch:
+                printable += f'\nActive branch: {active_branch}'
         else:
             printable += 'No images currently exist.'
         printable += (f'\n\nChanges to be committed:\n{changes}'
@@ -98,11 +99,12 @@ def status(no_print: bool = False) -> Tuple[List[str], List[str], List[str], Lis
 def checkout(commit_id: str) -> None:
     """Rollback to a previous image."""
     try:
-        wit_dir = utilities.get_wit_dir()
+        wit_dir_parent = utilities.get_wit_dir_parent()
     except FileNotFoundError as err:
         print(err)
         return
 
+    wit_dir = os.path.join(wit_dir_parent, '.wit')
     branches = utilities.get_parent_id(wit_dir)
     if commit_id not in branches and commit_id not in os.listdir(os.path.join(wit_dir, 'images')):
         print('Invalid commit id. Unable to perform checkout.')
@@ -114,19 +116,29 @@ def checkout(commit_id: str) -> None:
         return
 
     if commit_id in branches:
-        utilities.update_activated(commit_id, wit_dir)
+        branch_name = commit_id
         commit_id = branches[commit_id]
+    elif commit_id in branches.values():
+        for key, value in branches.items():
+            if value == commit_id:
+                branch_name = key
+    else:
+        branch_name = ''
+    utilities.update_activated(branch_name, wit_dir)
     for file in status_funcs.get_all_files(os.path.join(wit_dir, 'images', commit_id)):
         og_path = utilities.get_original_name(file)
-        if os.path.exists(og_path):
+        staging_area = utilities.get_new_path(og_path, wit_dir_parent, additions=['staging_area'])
+
+        for path in (og_path, staging_area):
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except PermissionError:
+                    shutil.rmtree(path)
             try:
-                os.remove(og_path)
+                shutil.copy2(file, path)
             except PermissionError:
-                shutil.rmtree(og_path)
-        try:
-            shutil.copy2(file, og_path)
-        except PermissionError:
-            shutil.copytree(file, og_path)
+                shutil.copytree(file, path)
 
     commit_funcs.update_references(commit_id, wit_dir, checkout=True)
     print(f'Reverted to {commit_id}')

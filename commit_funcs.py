@@ -66,9 +66,10 @@ def update_references(commit_id: str, wit_dir: Optional[str] = None, checkout: b
             return
     reference_path = os.path.join(wit_dir, 'references.txt')
     active_branch = utilities.get_active_branch(wit_dir)
-    active_branch_id = utilities.get_parent_id(wit_dir)[active_branch]
-    if not checkout and active_branch_id == utilities.get_parent_id(wit_dir)['HEAD']:
-        active_branch_id = commit_id
+    if active_branch:
+        active_branch_id = utilities.get_parent_id(wit_dir)[active_branch]
+        if not checkout and active_branch_id == utilities.get_parent_id(wit_dir)['HEAD']:
+            active_branch_id = commit_id
     with open(reference_path, 'r') as file_handler:
         reference = file_handler.readlines()
     text = ''
